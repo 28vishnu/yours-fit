@@ -1,0 +1,107 @@
+name: Build and publish Yours Fit APK
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: yours-fit-android-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    env:
+      APP_VERSION: 1.0.${{ github.run_number }}
+      ANDROID_VERSION_CODE: ${{ github.run_number }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Set up Java for Android
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install web dependencies
+        run: npm install
+
+      - name: Build responsive web app
+        env:
+          VITE_APP_VERSION: ${{ env.APP_VERSION }}
+          VITE_GITHUB_REPOSITORY: ${{ github.repository }}
+        run: npm run build
+
+      - name: Generate Android project if not committed yet
+        run: |
+          if [ ! -d android ]; then
+            npx cap add android
+          fi
+          npx cap sync android
+
+      - name: Set monotonically increasing Android version
+        env:
+          BUILD_VERSION_CODE: ${{ env.ANDROID_VERSION_CODE }}
+          BUILD_VERSION_NAME: ${{ env.APP_VERSION }}
+        run: |
+          python3 - <<'PY'
+          import os, re
+          from pathlib import Path
+          path = Path('android/app/build.gradle')
+          source = path.read_text()
+          source, code_count = re.subn(r'versionCode\s+\d+', f'versionCode {os.environ["BUILD_VERSION_CODE"]}', source, count=1)
+          source, name_count = re.subn(r'versionName\s+["\'][^"\']+["\']', f'versionName "{os.environ["BUILD_VERSION_NAME"]}"', source, count=1)
+          if code_count != 1 or name_count != 1:
+              raise SystemExit('Could not safely update versionCode/versionName in android/app/build.gradle')
+          path.write_text(source)
+          PY
+
+      - name: Build unsigned release APK
+        working-directory: android
+        run: ./gradlew assembleRelease
+
+      - name: Sign release APK with the persistent app key
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ] || [ -z "$ANDROID_KEY_ALIAS" ] || [ -z "$ANDROID_KEYSTORE_PASSWORD" ] || [ -z "$ANDROID_KEY_PASSWORD" ]; then
+            echo 'Missing Android signing secrets. Follow README.md: Create one signing keystore and add the four ANDROID_* repository secrets.' >&2
+            exit 1
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/yours-fit-release.jks"
+          UNSIGNED_APK='android/app/build/outputs/apk/release/app-release-unsigned.apk'
+          SIGNED_APK='android/app/build/outputs/apk/release/Yours-Fit.apk'
+          test -f "$UNSIGNED_APK"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" sign --ks "$RUNNER_TEMP/yours-fit-release.jks" --ks-key-alias "$ANDROID_KEY_ALIAS" --ks-pass env:ANDROID_KEYSTORE_PASSWORD --key-pass env:ANDROID_KEY_PASSWORD --out "$SIGNED_APK" "$UNSIGNED_APK"
+          "$APKSIGNER" verify --verbose "$SIGNED_APK"
+          rm -f "$RUNNER_TEMP/yours-fit-release.jks"
+
+      - name: Publish APK as a GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.APP_VERSION }}
+          name: Yours Fit ${{ env.APP_VERSION }}
+          body: |
+            Automated Yours Fit Android release.
+
+            - Install `Yours-Fit.apk` on your Android device.
+            - If Yours Fit is already installed, install this update over it; keep the same signing key for future releases.
+          files: android/app/build/outputs/apk/release/Yours-Fit.apk
+          draft: false
+          prerelease: false
+          make_latest: true
