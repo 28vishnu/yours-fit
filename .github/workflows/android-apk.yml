@@ -1,4 +1,4 @@
-name: Build and publish Yours Fit APK
+name: Build and publish Smart Fit APK
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: yours-fit-android-${{ github.ref }}
+  group: smart-fit-android-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -81,27 +81,27 @@ jobs:
             echo 'Missing Android signing secrets. Follow README.md: Create one signing keystore and add the four ANDROID_* repository secrets.' >&2
             exit 1
           fi
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/yours-fit-release.jks"
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/smart-fit-release.jks"
           UNSIGNED_APK='android/app/build/outputs/apk/release/app-release-unsigned.apk'
-          SIGNED_APK='android/app/build/outputs/apk/release/Yours-Fit.apk'
+          SIGNED_APK='android/app/build/outputs/apk/release/Smart-Fit.apk'
           test -f "$UNSIGNED_APK"
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
           test -x "$APKSIGNER"
-          "$APKSIGNER" sign --ks "$RUNNER_TEMP/yours-fit-release.jks" --ks-key-alias "$ANDROID_KEY_ALIAS" --ks-pass env:ANDROID_KEYSTORE_PASSWORD --key-pass env:ANDROID_KEY_PASSWORD --out "$SIGNED_APK" "$UNSIGNED_APK"
+          "$APKSIGNER" sign --ks "$RUNNER_TEMP/smart-fit-release.jks" --ks-key-alias "$ANDROID_KEY_ALIAS" --ks-pass env:ANDROID_KEYSTORE_PASSWORD --key-pass env:ANDROID_KEY_PASSWORD --out "$SIGNED_APK" "$UNSIGNED_APK"
           "$APKSIGNER" verify --verbose "$SIGNED_APK"
-          rm -f "$RUNNER_TEMP/yours-fit-release.jks"
+          rm -f "$RUNNER_TEMP/smart-fit-release.jks"
 
       - name: Publish APK as a GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ env.APP_VERSION }}
-          name: Yours Fit ${{ env.APP_VERSION }}
+          name: Smart Fit ${{ env.APP_VERSION }}
           body: |
-            Automated Yours Fit Android release.
+            Automated Smart Fit Android release.
 
-            - Install `Yours-Fit.apk` on your Android device.
-            - If Yours Fit is already installed, install this update over it; keep the same signing key for future releases.
-          files: android/app/build/outputs/apk/release/Yours-Fit.apk
+            - Install `Smart-Fit.apk` on your Android device.
+            - If Smart Fit is already installed, install this update over it; keep the same signing key for future releases.
+          files: android/app/build/outputs/apk/release/Smart-Fit.apk
           draft: false
           prerelease: false
           make_latest: true

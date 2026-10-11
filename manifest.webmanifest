@@ -1,6 +1,6 @@
 {
-  "name": "Yours Fit — Personal Fitness",
-  "short_name": "Yours Fit",
+  "name": "Smart Fit — Personal Fitness",
+  "short_name": "Smart Fit",
   "description": "Your personal fitness, workout, nutrition, hydration and recovery companion.",
   "start_url": "/",
   "scope": "/",
@@ -9,7 +9,7 @@
   "theme_color": "#f7f7fb",
   "orientation": "any",
   "icons": [
-    { "src": "/yours-fit-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "/yours-fit-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "/smart-fit-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/smart-fit-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ]
 }
